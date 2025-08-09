@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Galerie SVG — GitHub Icons</title>
+  <style>
+    :root{--bg:#f5f7fb;--card:#fff;--accent:#667eea;--text:#222}
+    body{font-family:system-ui,Segoe UI,Roboto,Arial; margin:0; background:var(--bg); color:var(--text)}
+    header{padding:20px;text-align:center}
+    h1{margin:0;font-size:1.4rem}
+    .wrap{max-width:1100px;margin:18px auto;padding:0 16px}
+    .controls{display:flex;gap:12px;justify-content:flex-end;margin-bottom:12px}
+    .search{padding:8px;border-radius:8px;border:1px solid #ddd;min-width:220px}
+    .gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px}
+    .card{background:var(--card);border-radius:10px;padding:12px;box-shadow:0 6px 18px rgba(15,20,30,0.06);display:flex;flex-direction:column;align-items:center;gap:8px;min-height:140px;justify-content:center}
+    .card img{max-width:100%;max-height:88px;}
+    .meta{font-size:13px;color:#555;word-break:break-word;text-align:center}
+    .small-btn{padding:6px 10px;border-radius:8px;border:1px solid #e6e6e6;background:#fff;cursor:pointer}
+    .footer{padding:28px;text-align:center;color:#666;font-size:14px}
+    .loader{display:flex;align-items:center;gap:10px;justify-content:center;padding:30px}
+    .error{color:#b00020;text-align:center;padding:20px}
+    @media (max-width:480px){.controls{justify-content:center}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Galerie SVG — dossier <code>icons/</code> du repo GitHub</h1>
+  </header>
+
+  <div class="wrap">
+    <div class="controls">
+      <input id="search" class="search" placeholder="Rechercher (nom de fichier)..." />
+      <button id="refresh" class="small-btn">Rafraîchir</button>
+      <a id="open-repo" class="small-btn" href="#" target="_blank" rel="noopener">Ouvrir le repo</a>
+    </div>
+
+    <div id="status" class="loader">Chargement…</div>
+    <div id="gallery" class="gallery" aria-live="polite"></div>
+    <div id="error" class="error" style="display:none"></div>
+  </div>
+
+  <div class="footer">
+    Déployé via GitHub Pages — ajoute/supprime les SVG dans <code>icons/</code>, la galerie s’actualise automatiquement.
+  </div>
+
+  <script>
+    // ---------- CONFIG ← remplace ici ----------
+    const GITHUB_USER = 'YOUR_GITHUB_USERNAME';
+    const GITHUB_REPO = 'YOUR_REPO_NAME';
+    const BRANCH = 'main';        // ou 'master' selon ton repo
+    const ICONS_PATH = 'icons';   // dossier contenant les .svg
+    // ------------------------------------------
+
+    const apiUrl = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${ICONS_PATH}?ref=${BRANCH}`;
+    const gallery = document.getElementById('gallery');
+    const status = document.getElementById('status');
+    const errorEl = document.getElementById('error');
+    const searchInput = document.getElementById('search');
+    const refreshBtn = document.getElementById('refresh');
+    const openRepoBtn = document.getElementById('open-repo');
+
+    openRepoBtn.href = `https://github.com/${GITHUB_USER}/${GITHUB_REPO}/tree/${BRANCH}/${ICONS_PATH}`;
+
+    async function loadIcons(){
+      gallery.innerHTML = '';
+      errorEl.style.display = 'none';
+      status.style.display = 'flex';
+      status.textContent = 'Chargement…';
+      try {
+        const res = await fetch(apiUrl);
+        if (!res.ok) throw new Error(`GitHub API : ${res.status} ${res.statusText}`);
+        const items = await res.json();
+        const svgs = items.filter(it => it.type === 'file' && /\.svg$/i.test(it.name));
+        if (!svgs.length) {
+          status.textContent = 'Aucun SVG trouvé dans ' + ICONS_PATH + '/';
+          return;
+        }
+        status.style.display = 'none';
+        renderGallery(svgs);
+      } catch (err) {
+        status.style.display = 'none';
+        errorEl.style.display = 'block';
+        errorEl.textContent = "Impossible de charger les icônes — vérifie que le repo est public et que tu as remplacé USER/REPO dans le script. (" + err.message + ")";
+        console.error(err);
+      }
+    }
+
+    function renderGallery(files){
+      gallery.innerHTML = '';
+      files.forEach(file => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        // image using the raw/download URL
+        const img = document.createElement('img');
+        img.src = file.download_url;
+        img.alt = file.name;
+        img.loading = 'lazy';
+
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.innerHTML = `<strong>${file.name}</strong>`;
+
+        const openBtn = document.createElement('a');
+        openBtn.className = 'small-btn';
+        openBtn.textContent = 'Ouvrir';
+        openBtn.href = file.download_url;
+        openBtn.target = '_blank';
+        openBtn.rel = 'noopener';
+
+        // download link
+        const dl = document.createElement('a');
+        dl.className = 'small-btn';
+        dl.textContent = 'Télécharger';
+        dl.href = file.download_url;
+        dl.download = file.name;
+
+        const controls = document.createElement('div');
+        controls.style.display = 'flex';
+        controls.style.gap = '6px';
+        controls.appendChild(openBtn);
+        controls.appendChild(dl);
+
+        card.appendChild(img);
+        card.appendChild(meta);
+        card.appendChild(controls);
+        gallery.appendChild(card);
+      });
+      // enable search
+      searchInput.oninput = () => filterGallery(searchInput.value.trim().toLowerCase());
+    }
+
+    function filterGallery(q){
+      Array.from(gallery.children).forEach(card => {
+        const name = card.querySelector('.meta').textContent.toLowerCase();
+        card.style.display = name.includes(q) ? 'flex' : 'none';
+      });
+    }
+
+    refreshBtn.onclick = () => loadIcons();
+
+    // initial load
+    loadIcons();
+  </script>
+</body>
+</html>
